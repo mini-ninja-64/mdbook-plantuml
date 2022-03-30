@@ -8,16 +8,16 @@ mod plantuml_renderer;
 #[cfg(any(feature = "plantuml-ssl-server", feature = "plantuml-server"))]
 mod plantuml_server_backend;
 mod plantuml_shell_backend;
-mod plantumlconfig;
+pub mod plantumlconfig;
 mod util;
 
 use crate::markdown_plantuml_pipeline::render_plantuml_code_blocks;
 
 use crate::plantuml_renderer::PlantUMLRenderer;
-use crate::plantumlconfig::PlantUMLConfig;
+use crate::plantumlconfig::get_plantuml_config;
 use mdbook::book::{Book, BookItem};
 use mdbook::preprocess::{Preprocessor, PreprocessorContext};
-use std::fs;
+use std::{fs, process};
 use std::path::Path;
 
 pub struct PlantUMLPreprocessor;
@@ -77,24 +77,6 @@ fn get_relative_img_url(chapter_path: &Path) -> String {
     rel_image_url.push_str("mdbook-plantuml-img");
 
     rel_image_url
-}
-
-fn get_plantuml_config(ctx: &PreprocessorContext) -> PlantUMLConfig {
-    ctx.config
-        .get("preprocessor.plantuml")
-        .and_then(|raw| {
-            raw.clone()
-                .try_into()
-                .map_err(|e| {
-                    log::warn!(
-                        "Failed to get config from book.toml, using default configuration ({}).",
-                        e
-                    );
-                    e
-                })
-                .ok()
-        })
-        .unwrap_or_default()
 }
 
 #[cfg(test)]

@@ -2,6 +2,7 @@ use clap::{Arg, ArgMatches, Command};
 use mdbook::errors::Error as MDBookError;
 use mdbook::preprocess::{CmdPreprocessor, Preprocessor};
 use mdbook_plantuml::PlantUMLPreprocessor;
+use mdbook_plantuml::plantumlconfig::get_plantuml_config;
 use std::error::Error;
 use std::io;
 use std::process;
@@ -13,11 +14,6 @@ pub fn make_app() -> Command<'static> {
         .version(VERSION)
         .author("Sytse Reitsma")
         .about("An mdbook preprocessor which renders PlantUML code blocks to SVG diagrams")
-        .arg(
-            Arg::new("log")
-                .short('l')
-                .help("Log to './output.log' (may help troubleshooting rendering issues)."),
-        )
         .subcommand(
             Command::new("supports")
                 .arg(Arg::new("renderer").required(true))
@@ -32,12 +28,6 @@ fn main() {
     if let Some(sub_args) = matches.subcommand_matches("supports") {
         handle_supports(&preprocessor, sub_args);
     } else {
-        if matches.is_present("log") {
-            if let Err(e) = setup_logging() {
-                eprintln!("{}", e);
-                process::exit(2);
-            }
-        }
         if let Err(e) = handle_preprocessing(&preprocessor) {
             eprintln!("{}", e);
             process::exit(1);
@@ -48,6 +38,14 @@ fn main() {
 fn handle_preprocessing(pre: &dyn Preprocessor) -> Result<(), MDBookError> {
     let (ctx, book) = CmdPreprocessor::parse_input(io::stdin())?;
 
+    let cfg = get_plantuml_config(&ctx);
+
+    if cfg.logging_enabled {
+        if let Err(e) = setup_logging(&cfg.logging_config) {
+                    eprintln!("{}", e);
+                    process::exit(2);
+                }
+    }
     if ctx.mdbook_version != mdbook::MDBOOK_VERSION {
         // We should probably use the `semver` crate to check compatibility
         // here...
@@ -76,26 +74,27 @@ fn handle_supports(pre: &dyn Preprocessor, sub_args: &ArgMatches) -> ! {
     }
 }
 
-fn setup_logging() -> Result<(), Box<dyn Error>> {
+fn setup_logging(logging_config_file: &Option<String>) -> Result<(), Box<dyn Error>> {
     use log::LevelFilter;
     use log4rs::append::file::FileAppender;
     use log4rs::config::{Appender, Config, Root};
     use log4rs::encode::pattern::PatternEncoder;
+    
+    if logging_config_file.is_some() {
+        log4rs::init_file(logging_config_file.as_ref().unwrap(), Default::default())?;
+    }else {
+        let logfile_appender = FileAppender::builder()
+            .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
+            .build("output.log")?;
 
-    let logfile = FileAppender::builder()
-        .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
-        .build("output.log")?;
-
-    let config = Config::builder()
-        .appender(Appender::builder().build("logfile", Box::new(logfile)))
-        .build(
-            Root::builder()
-                .appender("logfile")
-                .build(LevelFilter::Debug),
-        )?;
-    log4rs::init_config(config)?;
-
-    log::info!("--- Started preprocessor ---");
-
+        let config = Config::builder()
+            .appender(Appender::builder().build("logfile", Box::new(logfile_appender)))
+            .build(
+                Root::builder()
+                    .appender("logfile")
+                    .build(LevelFilter::Debug),
+            )?;
+        log4rs::init_config(config)?;
+    }
     Ok(())
 }
