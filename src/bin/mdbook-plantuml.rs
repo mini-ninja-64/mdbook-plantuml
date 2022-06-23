@@ -1,9 +1,9 @@
-use clap::{Arg, ArgMatches, Command};
+use clap::{Arg, Command};
+use mdbook::book::Book;
 use mdbook::errors::Error as MDBookError;
-use mdbook::preprocess::{CmdPreprocessor, Preprocessor};
+use mdbook::preprocess::{CmdPreprocessor, Preprocessor, PreprocessorContext};
 use mdbook_plantuml::PlantUMLPreprocessor;
-use mdbook_plantuml::plantumlconfig::get_plantuml_config;
-use std::error::Error;
+use mdbook_plantuml::plantumlconfig::{get_plantuml_config, PlantUMLConfig};
 use std::io;
 use std::process;
 
@@ -25,45 +25,49 @@ fn main() {
     let matches = make_app().get_matches();
 
     let preprocessor = PlantUMLPreprocessor;
+
     if let Some(sub_args) = matches.subcommand_matches("supports") {
-        handle_supports(&preprocessor, sub_args);
+        // It is safe to unwrap as it is confirmed to be there by clap validation
+        handle_supports(&preprocessor, sub_args.value_of("renderer").unwrap());
     } else {
-        if let Err(e) = handle_preprocessing(&preprocessor) {
-            eprintln!("{}", e);
-            process::exit(1);
-        }
+        let preprocessor_result = CmdPreprocessor::parse_input(io::stdin());
+
+    if let Ok((preprocessor_context, book)) = preprocessor_result {
+        let cfg = get_plantuml_config(&preprocessor_context);
+
+        handle_setup(&preprocessor, &preprocessor_context, &cfg);
+        handle_preprocessing(&preprocessor, &preprocessor_context, &book);
+    } else {
+        eprintln!("{}", preprocessor_result.unwrap_err());
+        process::exit(1);
+
+    }
     }
 }
 
-fn handle_preprocessing(pre: &dyn Preprocessor) -> Result<(), MDBookError> {
-    let (ctx, book) = CmdPreprocessor::parse_input(io::stdin())?;
 
-    let cfg = get_plantuml_config(&ctx);
-
-    if cfg.logging_enabled {
-        if let Err(e) = setup_logging(&cfg.logging_config) {
+fn handle_setup(preprocessor: &dyn Preprocessor, preprocessor_context: &PreprocessorContext,cfg: &PlantUMLConfig) {
+    if cfg.enable_logging {
+        if let Err(e) = setup_logging(&cfg) {
                     eprintln!("{}", e);
                     process::exit(2);
                 }
     }
-    if ctx.mdbook_version != mdbook::MDBOOK_VERSION {
+
+    if preprocessor_context.mdbook_version != mdbook::MDBOOK_VERSION {
         // We should probably use the `semver` crate to check compatibility
         // here...
-        eprintln!(
-            "Warning: The {} plugin was built against version {} of mdbook, but we're being \
-             called from version {}",
-            pre.name(),
-            mdbook::MDBOOK_VERSION,
-            ctx.mdbook_version
-        );
+        log::error!("Warning: The {} plugin was built against version {} of mdbook, but we're being called from version {}", preprocessor.name(), mdbook::MDBOOK_VERSION, preprocessor_context.mdbook_version);
     }
-    let processed_book = pre.run(&ctx, book)?;
+}
+
+fn handle_preprocessing(preprocessor: &dyn Preprocessor, preprocessor_context: &PreprocessorContext, book: &Book) -> Result<(), MDBookError>{
+    let processed_book = preprocessor.run(&preprocessor_context, book.to_owned())?;
     serde_json::to_writer(io::stdout(), &processed_book)?;
     Ok(())
 }
 
-fn handle_supports(pre: &dyn Preprocessor, sub_args: &ArgMatches) -> ! {
-    let renderer = sub_args.value_of("renderer").expect("Required argument");
+fn handle_supports(pre: &dyn Preprocessor, renderer: &str) -> ! {
     let supported = pre.supports_renderer(renderer);
 
     // Signal whether the renderer is supported by exiting with 1 or 0.
@@ -74,15 +78,20 @@ fn handle_supports(pre: &dyn Preprocessor, sub_args: &ArgMatches) -> ! {
     }
 }
 
-fn setup_logging(logging_config_file: &Option<String>) -> Result<(), Box<dyn Error>> {
+fn setup_logging(config: &PlantUMLConfig) -> Result<(), MDBookError> {
     use log::LevelFilter;
     use log4rs::append::file::FileAppender;
     use log4rs::config::{Appender, Config, Root};
     use log4rs::encode::pattern::PatternEncoder;
     
-    if logging_config_file.is_some() {
-        log4rs::init_file(logging_config_file.as_ref().unwrap(), Default::default())?;
-    }else {
+    if !config.enable_logging { 
+        return Ok(()); 
+    }
+
+    if let Some(config_file) = config.logging_config.as_ref() {
+        log4rs::init_file(config_file, Default::default())?;
+    } else {
+        // use default logging configuration
         let logfile_appender = FileAppender::builder()
             .encoder(Box::new(PatternEncoder::new("{l} - {m}\n")))
             .build("output.log")?;

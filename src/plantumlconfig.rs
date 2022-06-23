@@ -14,7 +14,7 @@ pub struct PlantUMLConfig {
     /// The default value is `false`.
     pub clickable_img: bool,
     /// Defines whether logging should be enabled
-    pub logging_enabled: bool,
+    pub enable_logging: bool,
     /// This allows users to override the default logger by providing a
     /// log4rs yaml file path
     pub logging_config: Option<String>,
