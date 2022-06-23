@@ -60,6 +60,8 @@ fn handle_setup(preprocessor: &dyn Preprocessor, preprocessor_context: &Preproce
 }
 
 fn handle_preprocessing(preprocessor: &dyn Preprocessor, preprocessor_context: &PreprocessorContext, book: &Book) -> Result<(), MDBookError>{
+    log::info!("--- Started preprocessor ---");
+    
     let processed_book = preprocessor.run(&preprocessor_context, book.to_owned())?;
     serde_json::to_writer(io::stdout(), &processed_book)?;
     Ok(())
