@@ -27,7 +27,7 @@ fn main() {
     let preprocessor = PlantUMLPreprocessor;
 
     if let Some(sub_args) = matches.subcommand_matches("supports") {
-        // It is safe to unwrap as it is confirmed to be there by clap validation
+        // It is safe to unwrap "renderer" as it is confirmed to be there by clap validation
         handle_supports(&preprocessor, sub_args.value_of("renderer").unwrap());
     } else {
         let preprocessor_result = CmdPreprocessor::parse_input(io::stdin());
@@ -45,13 +45,11 @@ fn main() {
     }
 }
 
+fn handle_setup(preprocessor: &dyn Preprocessor, preprocessor_context: &PreprocessorContext, config: &PlantUMLConfig) {
 
-fn handle_setup(preprocessor: &dyn Preprocessor, preprocessor_context: &PreprocessorContext,cfg: &PlantUMLConfig) {
-    if cfg.enable_logging {
-        if let Err(e) = setup_logging(&cfg) {
-                    eprintln!("{}", e);
-                    process::exit(2);
-                }
+    if let Err(e) = setup_logging(&config) {
+        eprintln!("{}", e);
+        process::exit(2);
     }
 
     if preprocessor_context.mdbook_version != mdbook::MDBOOK_VERSION {
