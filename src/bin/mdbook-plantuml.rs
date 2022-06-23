@@ -32,16 +32,16 @@ fn main() {
     } else {
         let preprocessor_result = CmdPreprocessor::parse_input(io::stdin());
 
-    if let Ok((preprocessor_context, book)) = preprocessor_result {
-        let cfg = get_plantuml_config(&preprocessor_context);
+        if let Ok((preprocessor_context, book)) = preprocessor_result {
+            let cfg = get_plantuml_config(&preprocessor_context);
 
-        handle_setup(&preprocessor, &preprocessor_context, &cfg);
-        handle_preprocessing(&preprocessor, &preprocessor_context, &book);
-    } else {
-        eprintln!("{}", preprocessor_result.unwrap_err());
-        process::exit(1);
+            handle_setup(&preprocessor, &preprocessor_context, &cfg);
+            handle_preprocessing(&preprocessor, &preprocessor_context, &book);
+        } else {
+            eprintln!("{}", preprocessor_result.unwrap_err());
+            process::exit(1);
 
-    }
+        }
     }
 }
 
