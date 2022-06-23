@@ -1,0 +1,11 @@
+[book]
+authors = ["mini_ninja_64"]
+language = "en"
+multilingual = false
+src = "src"
+title = "example"
+
+[preprocessor.plantuml]
+command = "../target/debug/mdbook-plantuml"
+enable-logging = true
+logging-config = "./logging_config.yml"
